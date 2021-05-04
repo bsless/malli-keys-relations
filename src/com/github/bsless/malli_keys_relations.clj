@@ -106,19 +106,27 @@
 
 (def keys-relation-prefix "keys")
 
+(defmulti -comperator-fn identity)
+(defmethod -comperator-fn :keys/<= [_] <=)
+(defmethod -comperator-fn :keys/<  [_] <)
+(defmethod -comperator-fn :keys/>  [_] >)
+(defmethod -comperator-fn :keys/>= [_] >=)
+(defmethod -comperator-fn :keys/=  [_] =)
+(defmethod -comperator-fn :keys/== [_] ==)
+(defmethod -comperator-fn :keys/not=  [_] not=)
+
 (defn comparator-relation
   [k]
-  (let [sym (symbol (name k))
-        f @(resolve sym)]
+  (let [f (-comperator-fn k)]
     [k
      (m/-simple-schema
       (fn [_properties [a b :as children]]
         {:type k
          :pred (m/-safe-pred #(f (get % a) (get % b))),
          :type-properties
-         {:gen/gen (-schema-gen type children)
-          :gen/fmap (-schema-fmap type children)
-          :error/fn {:en (-comparator-errfn type children)}}
+         {:gen/gen (-schema-gen k children)
+          :gen/fmap (-schema-fmap k children)
+          :error/fn {:en (-comparator-errfn k children)}}
          :min 2,
          :max 2}))]))
 
@@ -126,10 +134,8 @@
   []
   (into
    {}
-   (comp
-    (map #(keyword keys-relation-prefix (name %)))
-    (map comparator-relation))
-   ['> '>= '= '== '<= '< 'not=]))
+   (map comparator-relation)
+   [:keys/> :keys/>= :keys/= :keys/== :keys/<= :keys/< :keys/not=]))
 
 (def registry
   (mr/registry
@@ -157,8 +163,6 @@
       [:y nat-int?]]
      [:keys/= :x :y]]
     {:registry registry}))
-
-  (mg/generate number?)
 
   (mg/generate
    (m/schema
